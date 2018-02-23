@@ -1,0 +1,88 @@
+// Build pipeline for mc-fnol-bffe.
+node {
+
+
+  def qagate_enabled = env.QAGATE_ENABLED ?: false
+
+    stage 'allianz-travel-companion-bff get sources'
+ 
+    // Check out code from GHE
+    def git_name = "master"
+    print "branch name"+git_name
+    def app_name = "mobilityInsurance"
+    def branch="TEST"
+    def hostname = branch.equals("production") ? "${app_name}" : "${app_name}-${branch}"
+    def branch_appendix = git_name.equals("production") ? "" : "-${branch}"
+
+    
+   
+
+    checkout([
+            $class                           : 'GitSCM',
+            branches                         : [[name: "${git_name}"]],
+            doGenerateSubmoduleConfigurations: false,
+            extensions                       : [],
+            submoduleCfg                     : [],
+            userRemoteConfigs                : [[
+                                                        credentialsId: 'GitHubEnterprise',
+                                                        url          : 'https://github.developer.allianz.io/TravelCompanion/TravelCompanionOuterLayer.git'
+                                                ]]
+    ])
+	
+	
+	
+	
+	if (qagate_enabled) {
+
+            qaGate();
+        }
+	
+    stage 'allianz-travel-companion-bff - MVN Build'
+
+        withMaven(
+           maven:'maven3',
+          //  mavenSettingsConfig: 'mavenSettingsFile'
+          ) {
+            sh "mvn clean install"
+        }
+   
+
+    stage 'allianz-travel-companion-bff - Push to ADP'
+
+   
+
+        def cfHome = tool 'cf_cli'
+        env.CF_HOME = './.cf'
+        sh "mkdir -p ${env.CF_HOME}"
+
+        // Requires credentials binding plugin
+        withCredentials([[
+                                 $class          : 'UsernamePasswordMultiBinding',
+                                 credentialsId   : 'adp_tu',
+                                 usernameVariable: 'CF_USERNAME',
+                                 passwordVariable: 'CF_PASSWORD'
+                         ]]) {
+          sh "${cfHome}/cf login -a https://api.system.dadpo.azd.cloud.allianz -u ${env.CF_USERNAME} -p ${env.CF_PASSWORD} -o travelcompanion -s travelcompanion-test --skip-ssl-validation"
+
+            sh "${cfHome}/cf push "
+			//sh "${cfHome}/cf create-security-group allow-https security-group.json"
+			//sh "${cfHome}/cf bind-security-group allow-https travelcompanion travelcompanion-test"
+		
+        }
+
+} 
+/**
+ * Runs quality gates, currently only SonarQube
+ * @param {boolean} buzildBreakerEnabled  Breaks the build when quality gate is not met. Currently not enabled, so it defaults to false
+ */
+def qaGate(Boolean buildBreakerEnabled = false){
+    stage('QA gate - SonarQube analysis') {
+      // requires SonarQube Scanner 2.8+
+      def scannerHome = tool 'sonar-scanner';
+      withSonarQubeEnv('sonarqube-gdf') {
+        sh "${scannerHome}/bin/sonar-scanner"
+      }
+    }
+}
+
+

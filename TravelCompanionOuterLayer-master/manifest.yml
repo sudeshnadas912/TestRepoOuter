@@ -1,0 +1,16 @@
+---
+applications:
+  - name: GRP-edge-service
+    path: target/TravelCompanionBackEndServiceOuter-0.0.1-SNAPSHOT.jar
+    buildpack: java_buildpack_4_offline
+    memory: 1G
+    disk_quota: 1024M
+    domain: ext.dadpo.azd.cloud.allianz
+    
+   
+
+    env:
+      https_proxy: http://surf.proxy.allianz:8080
+      http_proxy: http://lx-pcsl01.aeat.allianz.at:8000/49/
+      no_proxy: localhost,.adp.allianz,.aeat.allianz.at
+      JAVA_OPTS: '-Djavax.net.ssl.trustStore=/home/vcap/app/BOOT-INF/classes/config/truststore_adp.jks'
